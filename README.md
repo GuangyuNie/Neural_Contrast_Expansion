@@ -20,6 +20,22 @@ At a high level, the workflow is:
 7. Use the resulting sensitivities to guide inverse design
 
 ---
+## Demo: Learned Kernel Structure Across Directions
+
+The figure below compares the kernel structure produced by three approaches across different directions $\theta$:
+
+- **SCE**: analytical kernel from the truncated strong-contrast expansion  
+- **NCE**: neural-corrected kernel that preserves the analytical structure
+- **End-to-End**: a purely data-driven model without explicit operator structure  
+
+This comparison highlights an important feature of NCE: it retains the physically meaningful, angle-dependent structure of the analytical kernel while allowing data-driven corrections. In contrast, a fully end-to-end model may fit forward outputs but does not necessarily recover interpretable or physically consistent kernel behavior.
+
+<p align="center">
+  <img src="conduction_kernel_demo.png" alt="Comparison of SCE, NCE, and End-to-End kernels across directions" width="100%">
+</p>
+
+
+---
 
 ## Repository Structure
 
@@ -43,3 +59,4 @@ Neural_Contrast_Expansion/
         ├── bessel_fourier_wave.py
         ├── bessel_network.py
         └── fourier_conductivity.py
+
