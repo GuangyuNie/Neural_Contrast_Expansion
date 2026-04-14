@@ -1,0 +1,27 @@
+# Microstructure Parameters
+sigma0: 5.0
+sigma1: 20.0
+mean: [0.5,0.6,0.7]
+length_scale_x: [0.001,0.002,0.003,0.004,0.005,0.006,0.01,0.02,0.03,0.04,0.05,0.06]
+length_scale_y: [0.01,0.02,0.03,0.04,0.05,0.06,0.001,0.002,0.003,0.004,0.005,0.006]
+d: 2
+size: 64
+gt_size: 1024
+
+# NPCF Parameters
+n: 2
+
+# Training Parameters
+learning_rate: 1e-1
+batch_size: 32
+epochs: 2000
+
+# Optimization Parameters
+optimizer:
+  name: Adam
+  weight_decay: 0.0001
+
+# Other Hyperparameters
+test_num : 10
+seed: 2024
+device: 0
