@@ -144,16 +144,11 @@ from scipy.sparse.linalg import spsolve
 
 class effective_conductivity_pde:
     def __init__(self, microstructure, sigma0, sigma1):
-        """
-        microstructure: 0/1 二值数组
-        sigma0, sigma1: 两相的标量电导率
-        """
         self.ms = microstructure.astype(np.int8)
         self.n = microstructure.shape[0]
-        assert self.ms.shape[0] == self.ms.shape[1], "需要正方网格"
+        assert self.ms.shape[0] == self.ms.shape[1], "need square grid"
         self.s0 = float(sigma0)
         self.s1 = float(sigma1)
-        # 单位网格间距 h=1 => 物理长度 L = n-1
         self.L = self.n - 1
 
     def sigma_field(self):
@@ -164,36 +159,27 @@ class effective_conductivity_pde:
         return 2.0 * a * b / (a + b + eps)
 
     def _assemble_A_b(self, sigma, drive='x'):
-        """
-        组装 A φ = b
-        drive: 'x' 或 'y'，决定线性 Dirichlet 的方向
-        """
         n = self.n
         idx = lambda i, j: i * n + j
         A = lil_matrix((n * n, n * n))
         b = np.zeros(n * n)
 
-        # 先准备边界 Dirichlet 值（线性势）
         phi_bc = np.zeros((n, n), dtype=float)
         if drive == 'x':
-            # 左右 0/1，上下依 x 线性：phi(i,j) = j/L
             for i in range(n):
                 for j in range(n):
                     phi_bc[i, j] = 1.0 - j / self.L
         else:  # drive == 'y'
-            # 上下 1/0，左右依 y 线性：phi(i,j) = 1 - i/L
             for i in range(n):
                 for j in range(n):
                     phi_bc[i, j] = 1.0 - i / self.L
 
-        # Dirichlet 边界打点
         is_boundary = np.zeros((n, n), dtype=bool)
         is_boundary[0, :] = True
         is_boundary[-1, :] = True
         is_boundary[:, 0] = True
         is_boundary[:, -1] = True
 
-        # 内部：五点格式（谐均值）
         for i in range(n):
             for j in range(n):
                 p = idx(i, j)
@@ -201,7 +187,6 @@ class effective_conductivity_pde:
                     A[p, p] = 1.0
                     b[p] = phi_bc[i, j]
                 else:
-                    # 邻接谐均值（注意 i 是 y，j 是 x）
                     sN = self._harmonic(sigma[i, j], sigma[i-1, j])
                     sS = self._harmonic(sigma[i, j], sigma[i+1, j])
                     sW = self._harmonic(sigma[i, j], sigma[i, j-1])
@@ -212,7 +197,6 @@ class effective_conductivity_pde:
                     A[p, idx(i, j-1)] = -sW
                     A[p, idx(i, j+1)] = -sE
                     A[p, p] = (sN + sS + sW + sE)
-                    # 内部无源 => b[p]=0
 
         return A.tocsr(), b, phi_bc
 
@@ -221,20 +205,12 @@ class effective_conductivity_pde:
         return phi.reshape(self.n, self.n)
 
     def _average_flux_faces(self, sigma, phi):
-        """
-        用“面”通量做平均：
-          Jx(i, j+1/2) = - sigma_e * (phi[i, j+1] - phi[i, j]) / h, h=1
-          Jy(i+1/2, j) = - sigma_s * (phi[i+1, j] - phi[i, j]) / h
-        返回 (Jx_avg, Jy_avg)
-        """
         n = self.n
 
-        # 水平面（x 向通量），大小 (n, n-1)
         sig_e = self._harmonic(sigma[:, :-1], sigma[:, 1:])
         dphix = (phi[:, 1:] - phi[:, :-1])
         Jx_faces = -sig_e * dphix
 
-        # 垂直面（y 向通量），大小 (n-1, n)
         sig_s = self._harmonic(sigma[:-1, :], sigma[1:, :])
         dphiy = (phi[1:, :] - phi[:-1, :])
         Jy_faces = -sig_s * dphiy
@@ -244,35 +220,22 @@ class effective_conductivity_pde:
         return Jx_avg, Jy_avg
 
     def compute(self):
-        """
-        做两次加载：
-          1) drive='x'：施加 Ex ≈ 1/L，得平均 J=(Jx_x, Jy_x)
-          2) drive='y'：施加 Ey ≈ 1/L，得平均 J=(Jx_y, Jy_y)
-        然后 Σ 的两列分别是 J/E。
-        """
         sigma = self.sigma_field()
-
-        # x 方向外场
         A_x, b_x, _ = self._assemble_A_b(sigma, drive='x')
         phi_x = self._solve_phi(A_x, b_x)
         Jx_x, Jy_x = self._average_flux_faces(sigma, phi_x)
 
-        # y 方向外场
         A_y, b_y, _ = self._assemble_A_b(sigma, drive='y')
         phi_y = self._solve_phi(A_y, b_y)
         Jx_y, Jy_y = self._average_flux_faces(sigma, phi_y)
 
-        # 外场大小（线性 Dirichlet：左右差 1，域长 L => E = 1/L）
         E0 = 1.0 / self.L
-
-        # 以两次加载的响应组 Σ 的两列
         Sigma = np.array([
             [Jx_x / E0, Jx_y / E0],
             [Jy_x / E0, Jy_y / E0],
         ])
         return Sigma
 
-    # 如果你还想拿到点上“梯度通量场”，也可以保留这个接口：
     def get_flux_fields(self):
         sigma = self.sigma_field()
         A_x, b_x, _ = self._assemble_A_b(sigma, drive='x')
@@ -280,7 +243,6 @@ class effective_conductivity_pde:
         A_y, b_y, _ = self._assemble_A_b(sigma, drive='y')
         phi_y = self._solve_phi(A_y, b_y)
 
-        # 点值梯度（注意顺序：grad[0]=d/dy, grad[1]=d/dx）
         gy_x, gx_x = np.gradient(phi_x)
         gy_y, gx_y = np.gradient(phi_y)
 
