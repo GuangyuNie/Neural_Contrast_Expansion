@@ -70,7 +70,6 @@ for _, angle in tqdm(enumerate(theta)):
                 g00, = torch.autograd.grad(A2[0, 0], S2_with_grad, retain_graph=True)
                 g11, = torch.autograd.grad(A2[1, 1], S2_with_grad, retain_graph=True)
 
-                # 看看是否为 0（允许一点点浮点误差）
                 max_abs = (g11 + g00).abs().max().item()
 
                 S2_with_grad.grad = None
@@ -88,9 +87,7 @@ for _, angle in tqdm(enumerate(theta)):
                 alpha11 = S2_with_grad.grad
                 alpha = alpha11.reshape(63, 63)
                 ii = j = 63 // 2  # 31
-                mid = alpha[ii, j]  # 中心元素
-
-                # 删掉中心元素，得到长度 3968 的一维数组
+                mid = alpha[ii, j]  
                 alpha_3968 = np.delete(alpha11.ravel(), ii * 63 + j)
                 test = (T_matrices * d / (2 * torch.pi))[:, 1, 1].detach().cpu() - alpha_3968
                 A_INV = torch.inverse(D / beta ** 2 / (phi) ** 2 - torch.eye(d, device=device))
@@ -119,8 +116,6 @@ for _, angle in tqdm(enumerate(theta)):
                 ii = j = N // 2
                 k = ii * N + j
 
-                # alpha_3968_t: 形状 (3968,) 的 1D tensor（和 mid 同 dtype/device）
-                # mid_t: 标量 tensor，例如 torch.tensor(mid, device=alpha_3968_t.device, dtype=alpha_3968_t.dtype)
                 mid_t = torch.tensor(0, device=device, dtype=dtype)
                 # constant = analytical_grad.view(N, N).detach().reshape(N, N).cpu() / alpha.cpu()
                 # alpha_flat = torch.cat([analytical_grad[:k], mid_t.view(1), analytical_grad[k:]], jdim=0)
